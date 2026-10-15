@@ -114,9 +114,10 @@ public sealed partial class GameCanvas
         var things = new List<(double Key, Action Draw)>();
         if (inGame)
         {
-            foreach (var e in g.Enemies) things.Add((e.X + e.Y, () => DrawEnemy(dc, e)));
-            if (g.Bear.Alive || g.Phase == Phase.Dying) things.Add((g.Bear.X + g.Bear.Y, () => DrawBear(dc, g.Bear)));
-            if (g.Bees.Active) things.Add((g.Bees.X + g.Bees.Y + 0.6, () => DrawBees(dc, g.Bees)));
+            foreach (var e in g.Enemies) things.Add((Row(c, e.X, e.Y, c.Z(e.X, e.Y)) + (e.X + e.Y) * 1e-3, () => DrawEnemy(dc, e)));
+            if (g.Bear.Alive || g.Phase == Phase.Dying)
+                things.Add((Row(c, g.Bear.X, g.Bear.Y, c.Z(g.Bear.X, g.Bear.Y) + g.Bear.Lift) + (g.Bear.X + g.Bear.Y) * 1e-3, () => DrawBear(dc, g.Bear)));
+            if (g.Bees.Active) things.Add((Row(c, g.Bees.X, g.Bees.Y, 99) + 0.9, () => DrawBees(dc, g.Bees)));
         }
         things.Sort((a, b) => a.Key.CompareTo(b.Key));
         int next = 0;
@@ -135,9 +136,30 @@ public sealed partial class GameCanvas
                 if (g.Honey == (i, j)) DrawHoney(dc, P(i + 0.5, j + 0.5, z));
             }
             // Things in this row, after its squares: those standing further forward are drawn by later rows.
-            while (next < things.Count && things[next].Key < s + 2) things[next++].Draw();
+            while (next < things.Count && things[next].Key < s + 1) things[next++].Draw();
         }
         while (next < things.Count) things[next++].Draw();
+    }
+
+    /// <summary>
+    /// The diagonal row after which something standing at (x, y) at height z is drawn: the frontmost row of the
+    /// squares its footprint reaches into, not counting any higher than it is (those are walls in front of it,
+    /// and are drawn over it). Drawn any earlier, the floor of a square it is stepping into would be painted
+    /// over its feet.
+    /// </summary>
+    private static int Row(Castle c, double x, double y, double z)
+    {
+        int best = (int)Math.Floor(x) + (int)Math.Floor(y);
+        foreach (double dx in new[] { -0.35, 0.35 })
+            foreach (double dy in new[] { -0.35, 0.35 })
+            {
+                int i = (int)Math.Floor(x + dx), j = (int)Math.Floor(y + dy);
+                if (!Field.Inside(i, j)) continue;
+                var q = c.Squares[i, j];
+                if (q.Walk && q.H > z + 0.05) continue;
+                best = Math.Max(best, i + j);
+            }
+        return best;
     }
 
     private static void DrawSquare(DrawingContext dc, Castle c, int i, int j, uint wall, uint top)
